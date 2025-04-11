@@ -1,89 +1,118 @@
+import 'dart:io'; 
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:photo_view/photo_view.dart';
+import 'package:window_manager/window_manager.dart';
 
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await windowManager.ensureInitialized();
+  if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+    WindowManager.instance.setMinimumSize(const Size(600, 600));
+  }
+  runApp(App());
+}
 
-void main() => runApp(RibbonApp());
-
-class RibbonApp extends StatelessWidget {
-  const RibbonApp({super.key});
+class App extends StatelessWidget {
+  const App({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Flutter Ribbon UI',
       theme: ThemeData(useMaterial3: true),
-      home: RibbonHomePage(),
+      home: MainPage(),
     );
   }
 }
 
-class RibbonHomePage extends StatefulWidget {
-  const RibbonHomePage({super.key});
+class UniversalPhotoView extends StatefulWidget {
+  final ImageProvider imageProvider;
+
+  const UniversalPhotoView({super.key, required this.imageProvider});
 
   @override
-  State<RibbonHomePage> createState() => RibbonHomePageState();
+  State<UniversalPhotoView> createState() => UniversalPhotoViewState();
 }
 
-class DraggableImageViewer extends StatefulWidget {
-  const DraggableImageViewer({super.key});
+class UniversalPhotoViewState extends State<UniversalPhotoView> {
+  final PhotoViewController controller = PhotoViewController();
+  final PhotoViewScaleStateController scaleStateController = PhotoViewScaleStateController();
+
+  bool isDragging = false;
+  Offset? lastPosition;
+  double currentScale = 1.0;
 
   @override
-  DraggableImageViewerState createState() => DraggableImageViewerState();
-}
-
-class DraggableImageViewerState extends State<DraggableImageViewer> {
-  Offset offset = Offset.zero;
-  bool middleButtonDown = false;
-  Offset? lastMousePosition;
+  void initState() {
+    super.initState();
+    controller.outputStateStream.listen((state) {
+      currentScale = state.scale ?? 1.0;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Listener(
       onPointerDown: (event) {
         if (event.kind == PointerDeviceKind.mouse &&
-            event.buttons == kMiddleMouseButton) {
-          middleButtonDown = true;
-          lastMousePosition = event.position;
+            (event.buttons == kMiddleMouseButton || event.buttons == kSecondaryMouseButton)) {
+          isDragging = true;
+          lastPosition = event.position;
         }
       },
       onPointerUp: (event) {
-        if (event.kind == PointerDeviceKind.mouse &&
-            event.buttons & kMiddleMouseButton == 0) {
-          middleButtonDown = false;
-          lastMousePosition = null;
+        if (event.kind == PointerDeviceKind.mouse) {
+          isDragging = false;
+          lastPosition = null;
         }
       },
       onPointerMove: (event) {
-        if (middleButtonDown && lastMousePosition != null) {
-          final delta = event.position - lastMousePosition!;
-          setState(() {
-            offset += delta;
-          });
-          lastMousePosition = event.position;
+        if (isDragging && lastPosition != null) {
+          final delta = event.position - lastPosition!;
+          controller.updateMultiple(
+            position: controller.position - delta,
+          );
+          lastPosition = event.position;
         }
       },
-      child: Container(
-        color: Colors.grey.shade100,
-        child: Stack(
-          children: [
-            Transform.translate(
-              offset: offset,
-              child: Center(
-                child: Image.network(
-                  'https://upload.wikimedia.org/wikipedia/commons/9/99/SampleUserIcon.png',
-                  width: 300,
-                ),
-              ),
-            ),
-          ],
-        ),
+      onPointerSignal: (event) {
+        if (event is PointerScrollEvent) {
+          final zoomAmount = -event.scrollDelta.dy * 0.0015;
+          final newScale = (currentScale * (1 + zoomAmount)).clamp(0.5, 5.0);
+
+          // Optional: Zoom toward mouse pointer
+          final renderBox = context.findRenderObject() as RenderBox;
+          final localPosition = renderBox.globalToLocal(event.position);
+
+          controller.scale = newScale;
+          controller.position += (localPosition - controller.position) * zoomAmount;
+          print(zoomAmount);
+        }
+      },
+      child: PhotoView(
+        imageProvider: widget.imageProvider,
+        controller: controller,
+        scaleStateController: scaleStateController,
+        backgroundDecoration: BoxDecoration(color: Colors.white),
+        enablePanAlways: true,
+        tightMode: false,
+        minScale: PhotoViewComputedScale.contained,
+        maxScale: PhotoViewComputedScale.covered * 5.0,
       ),
     );
   }
 }
 
-class RibbonHomePageState extends State<RibbonHomePage>
+
+class MainPage extends StatefulWidget {
+  const MainPage({super.key});
+
+  @override
+  State<MainPage> createState() => MainPageState();
+}
+
+class MainPageState extends State<MainPage>
     with SingleTickerProviderStateMixin {
   late TabController tabController;
 
@@ -128,7 +157,7 @@ class RibbonHomePageState extends State<RibbonHomePage>
           ],
         ),
       ),
-      body: PhotoView(
+      body: UniversalPhotoView(
         imageProvider: AssetImage('assets/images/europa.png'),
       )
     );
