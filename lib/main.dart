@@ -64,19 +64,16 @@ class MainPageState extends State<MainPage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return Scaffold (
       body: Column(
         children: [
           Container(
             color: Colors.blueGrey.shade100,
-            child: Row(
-              children: [
-                TabBar(
-                controller: tabController,
-                tabs: tabs.map((tab) => Tab(text: tab)).toList(),
-                labelColor: Colors.black,
-                ),
-              ]
+            child:
+            TabBar(
+              controller: tabController,
+              tabs: tabs.map((tab) => Tab(text: tab)).toList(),
+              labelColor: Colors.black,
             )
           ),
           Container(
