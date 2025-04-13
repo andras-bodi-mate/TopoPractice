@@ -1,15 +1,22 @@
 import 'dart:io'; 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/gestures.dart';
-import 'package:photo_view/photo_view.dart';
+import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 
+//import 'package:file_picker/file_picker.dart';
+
+import 'map.dart';
+
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await windowManager.ensureInitialized();
-  if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
-    WindowManager.instance.setMinimumSize(const Size(600, 600));
+  if (!kIsWeb) {
+    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+      WidgetsFlutterBinding.ensureInitialized();
+      await windowManager.ensureInitialized();
+      WindowManager.instance.setMinimumSize(const Size(600, 600));
+    }
   }
+
   runApp(App());
 }
 
@@ -19,91 +26,12 @@ class App extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Ribbon UI',
+      title: 'Topo Gyak',
       theme: ThemeData(useMaterial3: true),
       home: MainPage(),
     );
   }
 }
-
-class UniversalPhotoView extends StatefulWidget {
-  final ImageProvider imageProvider;
-
-  const UniversalPhotoView({super.key, required this.imageProvider});
-
-  @override
-  State<UniversalPhotoView> createState() => UniversalPhotoViewState();
-}
-
-class UniversalPhotoViewState extends State<UniversalPhotoView> {
-  final PhotoViewController controller = PhotoViewController();
-  final PhotoViewScaleStateController scaleStateController = PhotoViewScaleStateController();
-
-  bool isDragging = false;
-  Offset? lastPosition;
-  double currentScale = 1.0;
-
-  @override
-  void initState() {
-    super.initState();
-    controller.outputStateStream.listen((state) {
-      currentScale = state.scale ?? 1.0;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Listener(
-      onPointerDown: (event) {
-        if (event.kind == PointerDeviceKind.mouse &&
-            (event.buttons == kMiddleMouseButton || event.buttons == kSecondaryMouseButton)) {
-          isDragging = true;
-          lastPosition = event.position;
-        }
-      },
-      onPointerUp: (event) {
-        if (event.kind == PointerDeviceKind.mouse) {
-          isDragging = false;
-          lastPosition = null;
-        }
-      },
-      onPointerMove: (event) {
-        if (isDragging && lastPosition != null) {
-          final delta = event.position - lastPosition!;
-          controller.updateMultiple(
-            position: controller.position - delta,
-          );
-          lastPosition = event.position;
-        }
-      },
-      onPointerSignal: (event) {
-        if (event is PointerScrollEvent) {
-          final zoomAmount = -event.scrollDelta.dy * 0.0015;
-          final newScale = (currentScale * (1 + zoomAmount)).clamp(0.5, 5.0);
-
-          // Optional: Zoom toward mouse pointer
-          final renderBox = context.findRenderObject() as RenderBox;
-          final localPosition = renderBox.globalToLocal(event.position);
-
-          controller.scale = newScale;
-          controller.position += (localPosition - controller.position) * zoomAmount;
-          print(zoomAmount);
-        }
-      },
-      child: PhotoView(
-        imageProvider: widget.imageProvider,
-        controller: controller,
-        scaleStateController: scaleStateController,
-        backgroundDecoration: BoxDecoration(color: Colors.white),
-        enablePanAlways: true,
-        tightMode: false,
-        minScale: PhotoViewComputedScale.contained,
-        maxScale: PhotoViewComputedScale.covered * 5.0,
-      ),
-    );
-  }
-}
-
 
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
@@ -113,7 +41,7 @@ class MainPage extends StatefulWidget {
 }
 
 class MainPageState extends State<MainPage>
-    with SingleTickerProviderStateMixin {
+  with SingleTickerProviderStateMixin {
   late TabController tabController;
 
   final List<String> tabs = ['Home', 'Insert', 'View'];
@@ -125,6 +53,7 @@ class MainPageState extends State<MainPage>
     tabController.addListener(() {
       setState(() {}); // So we can show the correct ribbon content
     });
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: [SystemUiOverlay.bottom]);
   }
 
   @override
@@ -136,29 +65,29 @@ class MainPageState extends State<MainPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: Size.fromHeight(130),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              color: Colors.blueGrey.shade100,
-              child: TabBar(
+      body: Column(
+        children: [
+          Container(
+            color: Colors.blueGrey.shade100,
+            child: Row(
+              children: [
+                TabBar(
                 controller: tabController,
                 tabs: tabs.map((tab) => Tab(text: tab)).toList(),
                 labelColor: Colors.black,
-              ),
-            ),
-            Container(
-              width: double.infinity,
-              color: Colors.blueGrey.shade50,
-              child: buildRibbonContent(tabController.index),
-            ),
-          ],
-        ),
-      ),
-      body: UniversalPhotoView(
-        imageProvider: AssetImage('assets/images/europa.png'),
+                ),
+              ]
+            )
+          ),
+          Container(
+            width: double.infinity,
+            color: Colors.blueGrey.shade50,
+            child: buildRibbonContent(tabController.index),
+          ),
+          Expanded(
+            child: Map(imageProvider: AssetImage('assets/images/europa.png'))
+          )
+        ]
       )
     );
   }
