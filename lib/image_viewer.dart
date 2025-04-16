@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 class ImageViewer extends StatefulWidget {
@@ -29,22 +30,6 @@ class ImageViewerState extends State<ImageViewer> {
         imageWidth = info.image.width.toDouble();
         imageHeight = info.image.height.toDouble();
       });
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final RenderBox renderBox = context.findRenderObject() as RenderBox;
-        final Size containerSize = renderBox.size;
-
-        final double scaleX = containerSize.width / imageWidth;
-        final double scaleY = containerSize.height / imageHeight;
-        final double scale = scaleX < scaleY ? scaleX : scaleY;
-
-        final double dx = (containerSize.width - imageWidth * scale) / 2;
-        final double dy = (containerSize.height - imageHeight * scale) / 2;
-
-        transformController.value = Matrix4.identity()
-          ..translate(dx, dy)
-          ..scale(scale);
-      });
     }));
   }
 
@@ -52,19 +37,22 @@ class ImageViewerState extends State<ImageViewer> {
 
   @override
   Widget build(BuildContext context) {
-    return InteractiveViewer(
-      transformationController: transformController,
-      panEnabled: true,
-      scaleEnabled: true,
-      minScale: 1.0,
-      maxScale: 15,
-      boundaryMargin: EdgeInsets.all(double.infinity),
-      constrained: false,
-      
-      child: FittedBox(
-        fit: BoxFit.contain,
+    return Listener(
+      onPointerPanZoomUpdate: (event) {
+        print(event);
+      },
+
+      child: InteractiveViewer(
+        transformationController: transformController,
+        panEnabled: true,
+        scaleEnabled: true,
+        minScale: 1.0,
+        maxScale: 15,
+        boundaryMargin: EdgeInsets.all(double.infinity),
+        scaleFactor: kDefaultMouseScrollToScaleFactor,
+        //constrained: false,
         child: SizedBox(
-          child: Image(image: widget.imageProvider)
+          child: Image(image: widget.imageProvider, fit: BoxFit.contain, alignment: Alignment.center,)
         )
       )
     );
